@@ -120,6 +120,7 @@ function App() {
   const [pFilter, setPFilter]   = useState(null);
   const [expanded, setExpanded] = useState(null);
   const [viewAs, setViewAs]     = useState(null); // null = viewing as yourself
+  const [sourceFilter, setSourceFilter] = useState(null); // null | "Manava Resort" | "Independent"
   const saveTimer = useRef(null);
   const pollTimer = useRef(null);
 
@@ -187,6 +188,7 @@ function App() {
     if (cat!=="All" && a.cat!==cat) return false;
     if (selOnly && !a.myP) return false;
     if (pFilter!==null && a.myP!==pFilter) return false;
+    if (sourceFilter && a.source!==sourceFilter) return false;
     return true;
   });
 
@@ -261,6 +263,26 @@ function App() {
 
       {/* Controls */}
       <div style={{padding:"12px 14px 0",maxWidth:960,margin:"0 auto"}}>
+
+        {/* Source toggles */}
+        <div style={{display:"flex",gap:7,marginBottom:9}}>
+          {[["Manava Resort","🏨 On-resort","rgba(148,212,168,0.18)","rgba(148,212,168,0.3)","#7db8a0"],
+            ["Independent","🗺️ Off-resort","rgba(250,200,80,0.12)","rgba(250,200,80,0.3)","#c8a84a"]
+          ].map(([val,label,activeBg,activeBorder,activeColor]) => {
+            const on = sourceFilter===val;
+            return (
+              <button key={val} onClick={()=>setSourceFilter(sf=>sf===val?null:val)} style={{
+                background: on ? activeBg : "rgba(255,255,255,0.05)",
+                border: on ? "1.5px solid "+activeBorder : "1px solid rgba(255,255,255,0.1)",
+                borderRadius:20, padding: on?"4px 14px":"5px 15px",
+                fontSize:12, color: on ? activeColor : "#9aada0",
+                cursor:"pointer", fontFamily:"inherit", transition:"all 0.15s",
+                fontWeight: on ? 600 : 400,
+              }}>{label}{on?" ✕":""}</button>
+            );
+          })}
+        </div>
+
         {/* Category scroll — built dynamically from activities data */}
         <div style={{overflowX:"auto",paddingBottom:7,marginBottom:9}}>
           <div style={{display:"flex",gap:6,minWidth:"max-content"}}>
