@@ -309,6 +309,15 @@ function App() {
                       <span style={{fontSize:10.5,color:"#6b9c84"}}>{a.cat}</span>
                       <span style={{fontSize:10.5,color:"#3a5848"}}>·</span>
                       <span style={{fontSize:10.5,color:"#6b9c84"}}>⏱ {a.dur}</span>
+                      {a.source && (
+                        <span style={{fontSize:10,borderRadius:4,padding:"1px 6px",
+                          background: a.source==="Manava Resort" ? "rgba(148,212,168,0.12)" : "rgba(250,200,80,0.1)",
+                          border: a.source==="Manava Resort" ? "1px solid rgba(148,212,168,0.3)" : "1px solid rgba(250,200,80,0.25)",
+                          color: a.source==="Manava Resort" ? "#7db8a0" : "#c8a84a",
+                        }}>
+                          {a.source==="Manava Resort" ? "🏨 On-resort" : "🗺️ Off-resort"}
+                        </span>
+                      )}
                       {a.kids===false && <span style={{fontSize:10.5,color:"#f0a060"}}>⚠️ Age check</span>}
                       {ve.length>0 && (
                         <div style={{display:"flex",gap:3,marginLeft:2}}>
