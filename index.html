@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Moorea & Tahiti · Family Trip Planner</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0a1628; }
+  input:focus { outline: none; }
+  ::-webkit-scrollbar { height: 4px; width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(148,212,168,0.2); border-radius: 2px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzhLvuWfRY_V3hUAfodxE5LdbwhZh9g4BuN_8U-POg8FzxWlsUqK8CPz94eXsspVHLXzw/exec";
+const MY_NAME_KEY = "moorea-my-name-v2";
+function lsGet(k) { try { return localStorage.getItem(k); } catch { try { return sessionStorage.getItem(k); } catch { return null; } } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch { try { sessionStorage.setItem(k, v); } catch {} } }
+function lsRemove(k) { try { localStorage.removeItem(k); } catch { try { sessionStorage.removeItem(k); } catch {} } }
+const XPF_TO_USD = 0.00837;
+const xpf = a => "$" + Math.round(a * XPF_TO_USD);
+
+const CATEGORIES = ["All","🚤 Boat & Lagoon","🤿 Snorkeling","🏔️ Land & ATV","🌿 Nature & Hiking","🎭 Culture & Food","🧘 Spa & Wellness","🚗 Rentals","🐠 Tahiti (Jun 17-18)"];
+
+const ACTIVITIES = [
+  {id:1,  name:"Lagoon Tour by Motorized Canoe",          cat:"🚤 Boat & Lagoon",       where:"Resort (Manava)", dur:"6 hours",         pxpf:15000,  pnote:"per person; kids under 10 half price",       desc:"Swim with rays and sharks, coral garden snorkeling, BBQ lunch on the beach. Cook's Bay + Opunohu Bay. Departs 8:10am.", kids:true,  book:"Resort desk: +689 40 55 17 97 / activites@manavamoorearesort.pf", flag:"⭐ BOAT TRIP CANDIDATE"},
+  {id:2,  name:"Lagoon Tour by Pontoon Boat",             cat:"🚤 Boat & Lagoon",       where:"Resort (Manava)", dur:"7 hours",         pxpf:17000,  pnote:"per person; kids under 10 half price",       desc:"Full day pontoon boat. Rays, sharks, turtles possible. Lunch with feet in the water, open bar. Raw fish demo. Departs 8:45am.", kids:true,  book:"Resort activities desk", flag:"⭐ BOAT TRIP CANDIDATE"},
+  {id:3,  name:"Half-Day Lagoon Tour",                    cat:"🚤 Boat & Lagoon",       where:"Resort (Manava)", dur:"3 hours",         pxpf:14000,  pnote:"per person",                                 desc:"Cook's + Opunohu bays, coral garden, rays, sharks, possible turtles. Departs 8am or 1pm. Valid Nov 15–Jul 31 only.", kids:true,  book:"Resort activities desk", flag:"⭐ BOAT TRIP CANDIDATE"},
+  {id:4,  name:"Jet Ski Tour",                            cat:"🚤 Boat & Lagoon",       where:"Resort (Manava)", dur:"2 hours",         pxpf:23500,  pnote:"per jet ski (1-2 people)",                   desc:"Guide-led Cook's Bay + Opunohu Bay. Swimming stop with rays and sharks. Min driving age 16. Departs 8:45am or 12:45pm.", kids:false, knote:"Driver 16+; 14-year-old can ride as passenger", book:"Resort activities desk"},
+  {id:5,  name:"Sunset Cocktail Cruise",                  cat:"🚤 Boat & Lagoon",       where:"Resort (Manava)", dur:"2 hours",         pxpf:40000,  pnote:"for 2 people (private)",                     desc:"Pontoon boat, open bar, sunset views. Departs 5pm.", kids:true,  book:"Resort activities desk", flag:"Evening option"},
+  {id:6,  name:"Luxury Motor Catamaran",                  cat:"🚤 Boat & Lagoon",       where:"Resort (Manava)", dur:"3 or 6 hours",    pxpf:170000, pnote:"from 170,000 XPF for 2-6 people (half day)", desc:"Private luxury catamaran. Snorkeling with fish and rays, personalized service.", kids:true,  book:"Resort activities desk", flag:"💎 Splurge"},
+  {id:7,  name:"Snorkeling Tour with Seascooter",         cat:"🤿 Snorkeling",          where:"Resort (Manava)", dur:"2-3 hours",       pxpf:18000,  pnote:"per person (3-hr); 14,000 for 2-hr",         desc:"Underwater scooters at up to 7 km/h across the reef. Fish, turtles, rays, sharks, dolphins possible. Min age 7. New in 2026!", kids:true,  book:"Resort activities desk", flag:"🆕 New 2026 · ⭐ SNORKEL CANDIDATE"},
+  {id:8,  name:"Helmet Diving",                           cat:"🤿 Snorkeling",          where:"Resort (Manava)", dur:"~1 hour",         pxpf:10500,  pnote:"per person",                                 desc:"Walk on the lagoon floor with a waterproof helmet — no swimming required! Kids 6+. Departs 8:15am or 1pm.", kids:true,  book:"Resort activities desk", flag:"⭐ Kid favorite"},
+  {id:9,  name:"E-Paddle (Electric Paddleboard)",         cat:"🤿 Snorkeling",          where:"Resort (Manava)", dur:"2 hours",         pxpf:7500,   pnote:"per person; 30 min snorkeling + photos incl.", desc:"Electric paddleboard guided tour of the coral garden. 1h20 paddle + 30min snorkeling. Min age 7. Photo/video included.", kids:true,  book:"Resort activities desk"},
+  {id:10, name:"Coral Grafting Workshop",                 cat:"🤿 Snorkeling",          where:"Resort (Manava)", dur:"2 hours",         pxpf:8000,   pnote:"per person; kids under 10 half price",       desc:"Learn coral propagation, help restore Moorea's reef. Tue 9am, Thu 1:30pm, Sat 9am. Great for curious kids.", kids:true,  book:"Resort activities desk", flag:"🌊 Educational"},
+  {id:11, name:"ATV / Quad Bike – Top Quad Moorea",       cat:"🏔️ Land & ATV",         where:"Island (Manava pickup confirmed)", dur:"3.5 hours", pusd:"$60–90/person", desc:"490+ reviews on Viator. Belvedere, Cook's Bay, Opunohu, pineapple farms, Magic Mountain. Solo or twin ATVs.", kids:true,  knote:"Twin ATVs available — kids ride with parent", book:"Viator (Top Quad Moorea) or TripAdvisor", flag:"⭐ ATV CANDIDATE · Top-rated"},
+  {id:12, name:"ATV Grand Tour – Moorea Activity Center", cat:"🏔️ Land & ATV",         where:"Island (Manava pickup confirmed)", dur:"3.5 hours", pusd:"$70–95/person", desc:"Combo ATV + jet ski option. Guide Marco highly rated. Belvedere, pineapple farms, river with eels.", kids:true,  knote:"Tandem bikes for kids", book:"Viator or Moorea Activity Center directly", flag:"⭐ ATV CANDIDATE"},
+  {id:13, name:"Jeep Safari Tour (4x4)",                  cat:"🏔️ Land & ATV",         where:"Resort (Manava)", dur:"4 hours",         pxpf:6000,   pnote:"per person; kids under 10 half price",       desc:"4x4 vehicle, Belvedere + Magic Mountain lookouts, pineapple plantations, fruit liqueur tasting. Departs 8:15am or 1:15pm.", kids:true,  knote:"Bumpy — not for back problems", book:"Resort activities desk", flag:"Budget-friendly"},
+  {id:14, name:"Sea Side & Land Side Full Day",           cat:"🏔️ Land & ATV",         where:"Resort (Manava)", dur:"6 hours",         pxpf:16000,  pnote:"per person; children 4-11: 7,500 XPF",       desc:"Island interior + coastline in 4x4. Belvedere, pineapple farms, BBQ lunch on private beach, Afareaitu waterfall (20-min walk). Departs 8:15am.", kids:true,  book:"Resort activities desk", flag:"Full-day combo"},
+  {id:15, name:"Waterfall Getaway (Afareaitu Valley)",    cat:"🌿 Nature & Hiking",     where:"Resort (Manava)", dur:"4 hours",         pxpf:9000,   pnote:"per person; kids under 10 half price",       desc:"Hike through Afareaitu Valley to a waterfall and natural swimming pools. Medium level, 30-45 min hike. Departs 7:45am.", kids:true,  knote:"Min age 8; path is narrow and slippery", book:"Resort activities desk"},
+  {id:16, name:"3 Pines Trail (Easy Hike)",               cat:"🌿 Nature & Hiking",     where:"Resort (Manava)", dur:"3 hours",         pxpf:7000,   pnote:"adults; 5,000 XPF under 15",                 desc:"Easy guided hike. Great intro to Moorea's interior for families. Transport not included.", kids:true,  book:"Resort activities desk"},
+  {id:17, name:"3 Coconut Trail (Intermediate Hike)",     cat:"🌿 Nature & Hiking",     where:"Resort (Manava)", dur:"4 hours",         pxpf:7000,   pnote:"adults; 5,000 XPF under 15",                 desc:"Intermediate guided hike through Moorea's tropical interior. Transport not included.", kids:true,  book:"Resort activities desk"},
+  {id:18, name:"Horseback Riding – Opunohu Valley",       cat:"🌿 Nature & Hiking",     where:"Resort (Manava)", dur:"3 hours",         pxpf:9000,   pnote:"per person",                                 desc:"Guided ride through the Opunohu Valley and plantations. Departs 7:45am or 1:45pm. Closed Mondays.", kids:true,  knote:"Check min age/weight with resort", book:"Resort activities desk"},
+  {id:19, name:"Tiki Village – Grand Polynesian Evening", cat:"🎭 Culture & Food",      where:"Tiki Village (resort arranges transport)", dur:"~5 hours", pxpf:12500, pnote:"adults; 5,950 XPF under 10", desc:"Tahitian oven opening, village tour, Polynesian dinner, fire dancing show. Departs 5:45pm, returns ~11pm.", kids:true,  book:"Resort activities desk", flag:"🔥 Top cultural pick"},
+  {id:20, name:"Nature & Culture Tour (VR + Sites)",      cat:"🎭 Culture & Food",      where:"Resort (Manava)", dur:"4 hours",         pxpf:12000,  pnote:"per person; kids under 10 half price",       desc:"VR helmets + ancient Polynesian sites. Belvedere, archaeological ruins, Mutiny on the Bounty film set. History specialist guide. 7:45am.", kids:true,  book:"Resort activities desk"},
+  {id:21, name:"Street Food Adventures",                  cat:"🎭 Culture & Food",      where:"Resort (Manava)", dur:"4-5 hours",       pxpf:17000,  pnote:"per person",                                 desc:"Gastronomic tour with 6-8 local tastings. Tahitian, Chinese, and French food culture blend. Closed Sundays. Departs 8:40am.", kids:true,  knote:"Adventurous eaters recommended", book:"Resort activities desk"},
+  {id:22, name:"100% Local Cooking Class + Lunch",        cat:"🎭 Culture & Food",      where:"Resort (Manava)", dur:"4 hours",         pxpf:16000,  pnote:"per person",                                 desc:"Traditional Polynesian cooking with banana leaves, wild hibiscus, local ingredients. Family-style meal. Mon/Wed/Fri 8:45am.", kids:true,  book:"Resort activities desk"},
+  {id:23, name:"Polynesian Dance Shows at Resort",        cat:"🎭 Culture & Food",      where:"Resort (Manava)", dur:"Evening",         pxpf:0,      pnote:"Included — Fri & Sat buffet evenings",        desc:"Twice-weekly Polynesian dance shows included in resort stay. Check schedule at front desk.", kids:true,  book:"Ask at front desk", flag:"Free / Included"},
+  {id:24, name:"Manea Spa – Polynesian Treatments",       cat:"🧘 Spa & Wellness",      where:"Resort (Manava)", dur:"Varies",          pusd:"Contact resort", desc:"Massages with monoi oils, natural island plants. Hammam, Jacuzzi, aquatic massage. For adults.", kids:false, knote:"Adults only", book:"Resort spa directly"},
+  {id:25, name:"Aqua Gym Classes",                        cat:"🧘 Spa & Wellness",      where:"Resort Pool",     dur:"~1 hour",         pxpf:0,      pnote:"Likely included",                             desc:"High-energy pool workout (instructor Luisa highly rated). Fun for the whole family. Check schedule.", kids:true,  book:"Ask at front desk", flag:"Free"},
+  {id:26, name:"Electric Bike Rental",                    cat:"🚗 Rentals",             where:"Resort (Manava)", dur:"4 or 8 hours",    pxpf:5500,   pnote:"4 hrs; 6,500 for 8 hrs",                     desc:"Explore the coastal road at your own pace. Flat terrain makes it doable for the whole family.", kids:true,  book:"Resort activities desk"},
+  {id:27, name:"Mountain Bike Rental",                    cat:"🚗 Rentals",             where:"Resort (Manava)", dur:"4 or 8 hours",    pxpf:3500,   pnote:"4 hrs; 4,500 for 8 hrs",                     desc:"Classic bikes to explore the island. Cheaper option for casual riding.", kids:true,  book:"Resort activities desk"},
+  {id:28, name:"Scooter Rental (50cc)",                   cat:"🚗 Rentals",             where:"Resort (Manava)", dur:"4 hrs–48 hrs",    pxpf:5500,   pnote:"4 hrs; up to 12,000 for 48 hrs",             desc:"50cc scooter for 2. Circle the island independently. Kids cannot drive.", kids:false, knote:"Adults only driving", book:"Resort activities desk"},
+  {id:29, name:"Marché de Papeete (Central Market)",      cat:"🐠 Tahiti (Jun 17-18)", where:"Papeete, Tahiti", dur:"1-2 hours",       pxpf:0,      pnote:"Free entry; budget for shopping",             desc:"Bustling indoor market — local crafts, souvenirs, black pearls, food. Best before 9am. Upper floor: pareos, vanilla. Lower: fish, taro.", kids:true,  book:"None", flag:"Must-do in Papeete"},
+  {id:30, name:"Tahiti Lagoonarium",                      cat:"🐠 Tahiti (Jun 17-18)", where:"Near Papeete",    dur:"Half day",        pusd:"~$20–30/person", desc:"Observe and interact with marine life in a natural lagoon setting. Educational and kid-friendly.", kids:true,  book:"Book online or at venue", flag:"Great for kids"},
+  {id:31, name:"East Coast Tour (Waterfalls + Blowhole)", cat:"🐠 Tahiti (Jun 17-18)", where:"Tahiti East Coast", dur:"4.5 hours",    pusd:"$60–80/person",  desc:"Arahoho Blowhole geyser spectacle + Faarumai Waterfalls. Scenic coastal road. Pickup available.", kids:true,  book:"GetYourGuide or Viator"},
+  {id:32, name:"Roulottes (Food Trucks) at Place Vaiete", cat:"🐠 Tahiti (Jun 17-18)", where:"Papeete waterfront", dur:"Dinner (~1-2 hrs)", pxpf:1200, pnote:"per dish (~$10)", desc:"Most authentic Papeete dinner — dozens of food trucks on the waterfront. Try poisson cru (raw tuna in lime & coconut milk). Best at night.", kids:true,  book:"None — just show up", flag:"Dinner must-do"},
+  {id:33, name:"Museum of Tahiti and Her Islands",        cat:"🐠 Tahiti (Jun 17-18)", where:"Puna'auia, Tahiti", dur:"2-3 hours",     pusd:"~$14/person",    desc:"Best museum in the South Pacific. Geography, nature, history of French Polynesia. Check if open after renovation.", kids:true,  book:"None; check hours"},
+  {id:34, name:"Teahupoo / West Coast Full Day Tour",     cat:"🐠 Tahiti (Jun 17-18)", where:"Tahiti",          dur:"8 hours",         pusd:"$80–120/person", desc:"Visit legendary Teahupoo surf break + west coast highlights. Great for surf-curious teens. Pickup available.", kids:true,  book:"GetYourGuide / Viator"},
+];
+
+const PL = {1:"Must Do", 2:"Want To", 3:"Maybe"};
+const PC = {1:"#10b981", 2:"#3b82f6", 3:"#f59e0b"};
+const PB = {1:"rgba(16,185,129,0.10)", 2:"rgba(59,130,246,0.10)", 3:"rgba(245,158,11,0.10)"};
+const MC = ["#10b981","#3b82f6","#f59e0b","#e879a0","#a78bfa","#fb923c"];
+
+function fmtPrice(a) {
+  if (a.pxpf === 0) return "FREE";
+  if (a.pxpf) return xpf(a.pxpf) + " / " + a.pxpf.toLocaleString() + " XPF";
+  if (a.pusd) return a.pusd;
+  return "Contact resort";
+}
+
+function score(id, votes) {
+  const ms = Object.keys(votes);
+  if (!ms.length) return 999;
+  const vs = ms.map(m => votes[m][id] || null).filter(Boolean);
+  if (!vs.length) return 999;
+  return vs.reduce((s,v)=>s+v,0)/vs.length - (vs.length/ms.length)*0.3;
+}
+
+async function apiGet() {
+  const r = await fetch(SCRIPT_URL);
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error);
+  return j.data;
+}
+async function apiPost(payload) {
+  const r = await fetch(SCRIPT_URL, { method:"POST", body: JSON.stringify(payload) });
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error);
+  return j.data;
+}
+
+function NameSetup({ taken, onSave, saving }) {
+  const [name, setName] = useState("");
+  const [err, setErr] = useState("");
+  const isRejoining = name.trim() && taken.map(n=>n.toLowerCase()).includes(name.trim().toLowerCase());
+  const submit = () => {
+    const t = name.trim();
+    if (!t) { setErr("Please enter your name."); return; }
+    // If name already exists, rejoin as that person (no error)
+    onSave(t);
+  };
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0a1628,#0d2340 40%,#0a3a2a)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Georgia,Palatino,serif",padding:24}}>
+      <div style={{maxWidth:440,width:"100%",textAlign:"center"}}>
+        <div style={{fontSize:48,marginBottom:16}}>🌺</div>
+        <div style={{fontSize:11,letterSpacing:6,color:"#94d4a8",textTransform:"uppercase",marginBottom:8}}>Moorea & Tahiti · Family Trip Planner</div>
+        <h2 style={{fontSize:26,fontWeight:400,color:"#fef0c0",margin:"0 0 8px"}}>Who are you?</h2>
+        <p style={{color:"#7db8a0",fontSize:14,marginBottom:20,lineHeight:1.6}}>Each family member votes on their favourite activities.<br/>Your name is remembered on this device.</p>
+        {taken.length > 0 && (
+          <div style={{marginBottom:20,fontSize:12,color:"#5a8870"}}>
+            Already joined: {taken.map(n=><span key={n} style={{display:"inline-block",background:"rgba(148,212,168,0.12)",border:"1px solid rgba(148,212,168,0.25)",borderRadius:12,padding:"2px 10px",margin:"2px 3px",color:"#94d4a8"}}>{n}</span>)}
+          </div>
+        )}
+        <input autoFocus value={name} onChange={e=>{setName(e.target.value);setErr("");}} onKeyDown={e=>e.key==="Enter"&&submit()} placeholder="Your first name or nickname..."
+          style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(148,212,168,0.3)",borderRadius:10,padding:"14px 18px",fontSize:16,color:"#f0e6cc",fontFamily:"inherit",marginBottom:err?8:16}}/>
+        {err && <div style={{color:"#f87171",fontSize:13,marginBottom:12}}>{err}</div>}
+        <button onClick={submit} disabled={saving}
+          style={{width:"100%",background:"rgba(148,212,168,0.2)",border:"1px solid rgba(148,212,168,0.5)",borderRadius:10,padding:"14px",fontSize:15,color:"#94d4a8",cursor:saving?"wait":"pointer",fontFamily:"inherit",opacity:saving?0.7:1}}>
+          {saving ? (isRejoining ? "Rejoining..." : "Joining...") : (isRejoining ? "Rejoin as " : "Join as ") + (name.trim()||"...") + " →"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [myName, setMyName] = useState(() => { try { return lsGet(MY_NAME_KEY)||""; } catch { return ""; } });
+  const [allVotes, setAllVotes] = useState({});
+  const [loadState, setLoadState] = useState("loading");
+  const [saveStatus, setSaveStatus] = useState("idle");
+  const [joining, setJoining] = useState(false);
+  const [cat, setCat] = useState("All");
+  const [sortBy, setSortBy] = useState("category");
+  const [selOnly, setSelOnly] = useState(false);
+  const [pFilter, setPFilter] = useState(null);
+  const [expanded, setExpanded] = useState(null);
+  const saveTimer = useRef(null);
+  const pollTimer = useRef(null);
+
+  const loadVotes = async () => {
+    try { const d = await apiGet(); setAllVotes(d||{}); setLoadState("ready"); }
+    catch { setLoadState(s => s==="loading" ? "error" : s); }
+  };
+
+  useEffect(() => {
+    loadVotes();
+    pollTimer.current = setInterval(loadVotes, 15000);
+    return () => clearInterval(pollTimer.current);
+  }, []);
+
+  const saveName = async (name) => {
+    setJoining(true);
+    try {
+      const d = await apiPost({ action:"setName", name });
+      setAllVotes(d||{});
+      lsSet(MY_NAME_KEY, name);
+      setMyName(name);
+    } catch { alert("Could not connect. Check your internet connection and try again."); }
+    finally { setJoining(false); }
+  };
+
+  const setPriority = (aid, p) => {
+    if (!myName) return;
+    const mv = allVotes[myName]||{};
+    const nmv = {...mv, [aid]: mv[aid]===p ? null : p};
+    const nav = {...allVotes, [myName]: nmv};
+    setAllVotes(nav);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    setSaveStatus("saving");
+    saveTimer.current = setTimeout(async () => {
+      try { const d = await apiPost({action:"setVotes",name:myName,votes:nmv}); setAllVotes(d||nav); setSaveStatus("saved"); setTimeout(()=>setSaveStatus("idle"),2000); }
+      catch { setSaveStatus("error"); }
+    }, 600);
+  };
+
+  const members = Object.keys(allVotes);
+  const mcMap = members.reduce((a,m,i)=>{a[m]=MC[i%MC.length];return a;},{});
+  const mv = myName ? (allVotes[myName]||{}) : {};
+
+  const acts = ACTIVITIES.map(a => ({
+    ...a,
+    myP: mv[a.id]||null,
+    votes: members.reduce((acc,m)=>{const v=allVotes[m][a.id]||null;if(v)acc[m]=v;return acc;},{}),
+    sc: score(a.id, allVotes),
+  }));
+
+  const pc = {1:0,2:0,3:0};
+  acts.forEach(a => { if(a.myP) pc[a.myP]++; });
+
+  const filtered = acts.filter(a => {
+    if (cat!=="All" && a.cat!==cat) return false;
+    if (selOnly && !a.myP) return false;
+    if (pFilter!==null && a.myP!==pFilter) return false;
+    return true;
+  });
+
+  const sorted = [...filtered].sort((a,b) => {
+    if (sortBy==="priority") return (a.myP||99)-(b.myP||99);
+    if (sortBy==="consensus") return a.sc-b.sc;
+    if (sortBy==="price") return (a.pxpf||999999)-(b.pxpf||999999);
+    return a.cat.localeCompare(b.cat)||a.name.localeCompare(b.name);
+  });
+
+  const togglePF = p => { setPFilter(pv=>pv===p?null:p); if(selOnly) setSelOnly(false); };
+  const toggleSel = () => { setSelOnly(s=>!s); if(!selOnly) setPFilter(null); };
+
+  if (loadState==="loading") return (
+    <div style={{minHeight:"100vh",background:"#0a1628",display:"flex",alignItems:"center",justifyContent:"center",color:"#94d4a8",fontFamily:"Georgia,serif",fontSize:14,gap:10}}>
+      <span style={{display:"inline-block",animation:"spin 1s linear infinite"}}>🌀</span> Loading family votes...
+    </div>
+  );
+  if (loadState==="error") return (
+    <div style={{minHeight:"100vh",background:"#0a1628",display:"flex",alignItems:"center",justifyContent:"center",color:"#f87171",fontFamily:"Georgia,serif",fontSize:14,flexDirection:"column",gap:12,padding:24,textAlign:"center"}}>
+      <div style={{fontSize:32}}>⚠️</div>
+      <div>Could not reach the backend.</div>
+      <div style={{color:"#5a8870",fontSize:12}}>Check your internet connection.</div>
+      <button onClick={loadVotes} style={{marginTop:8,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"8px 20px",color:"#94d4a8",cursor:"pointer",fontFamily:"inherit"}}>Retry</button>
+    </div>
+  );
+  if (!myName) return <NameSetup taken={members} onSave={saveName} saving={joining}/>;
+
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0a1628,#0d2340 40%,#0a3a2a)",fontFamily:"Georgia,Palatino,serif",color:"#e8dcc8",paddingBottom:60}}>
+
+      {/* Header */}
+      <div style={{background:"linear-gradient(180deg,rgba(0,80,60,0.6),transparent)",padding:"28px 20px 22px",textAlign:"center",borderBottom:"1px solid rgba(255,200,100,0.15)"}}>
+        <div style={{fontSize:11,letterSpacing:6,color:"#94d4a8",textTransform:"uppercase",marginBottom:5}}>Family Trip Planner</div>
+        <h1 style={{fontSize:"clamp(22px,5vw,38px)",fontWeight:400,margin:"0 0 4px",color:"#fef0c0"}}>Moorea & Tahiti</h1>
+        <div style={{color:"#7db8a0",fontSize:13,marginBottom:14}}>June 13–18, 2026 · Manava Beach Resort</div>
+
+        {/* Member dots */}
+        <div style={{display:"flex",gap:7,justifyContent:"center",flexWrap:"wrap",marginBottom:12}}>
+          {members.map(m=>(
+            <div key={m} style={{display:"flex",alignItems:"center",gap:5,background:m===myName?`${mcMap[m]}22`:"rgba(255,255,255,0.05)",border:`1px solid ${m===myName?mcMap[m]:"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"4px 11px",fontSize:11.5,color:m===myName?mcMap[m]:"#7a9988"}}>
+              <span style={{width:6,height:6,borderRadius:"50%",background:mcMap[m],display:"inline-block"}}/>
+              {m}{m===myName?" (you)":""}
+            </div>
+          ))}
+          <button onClick={()=>{try{lsRemove(MY_NAME_KEY);}catch{}setMyName("");}}
+            style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",borderRadius:20,padding:"4px 11px",fontSize:11,color:"#3a5848",cursor:"pointer",fontFamily:"inherit"}}>Switch</button>
+        </div>
+
+        {/* Priority pills */}
+        <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
+          {[1,2,3].map(p=>{
+            const on=pFilter===p;
+            return <button key={p} onClick={()=>togglePF(p)} style={{background:on?PB[p]:`${PC[p]}14`,border:on?`2px solid ${PC[p]}`:`1px solid ${PC[p]}44`,borderRadius:20,padding:on?"5px 14px":"6px 15px",fontSize:12,color:on?PC[p]:`${PC[p]}bb`,cursor:"pointer",fontFamily:"inherit",boxShadow:on?`0 0 10px ${PC[p]}30`:"none"}}>
+              {PL[p]}: {pc[p]}{on?" ✕":""}
+            </button>;
+          })}
+        </div>
+
+        <div style={{height:16,marginTop:5,fontSize:11,color:saveStatus==="error"?"#f87171":saveStatus==="saved"?"#10b981":"#3a5848",transition:"color 0.3s"}}>
+          {saveStatus==="saving"&&"Saving..."}{saveStatus==="saved"&&"✓ Saved to Drive"}{saveStatus==="error"&&"⚠ Save failed"}
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div style={{padding:"12px 14px 0",maxWidth:960,margin:"0 auto"}}>
+        {/* Category scroll */}
+        <div style={{overflowX:"auto",paddingBottom:7,marginBottom:9}}>
+          <div style={{display:"flex",gap:6,minWidth:"max-content"}}>
+            {CATEGORIES.map(c=>(
+              <button key={c} onClick={()=>setCat(c)} style={{background:cat===c?"rgba(148,212,168,0.2)":"rgba(255,255,255,0.05)",border:cat===c?"1px solid #94d4a8":"1px solid rgba(255,255,255,0.1)",borderRadius:20,padding:"5px 12px",fontSize:11.5,color:cat===c?"#94d4a8":"#9aada0",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>{c}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Sort row */}
+        <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
+          <span style={{fontSize:10.5,color:"#6b9980",letterSpacing:2,textTransform:"uppercase"}}>Sort:</span>
+          {[["category","Category"],["priority","My Priority"],["consensus","Family"],["price","Price"]].map(([v,l])=>(
+            <button key={v} onClick={()=>setSortBy(v)} style={{background:sortBy===v?"rgba(250,200,80,0.15)":"transparent",border:sortBy===v?"1px solid rgba(250,200,80,0.4)":"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"4px 10px",fontSize:11,color:sortBy===v?"#fac850":"#7a9988",cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+          ))}
+          <button onClick={toggleSel} style={{background:selOnly?"rgba(148,212,168,0.15)":"transparent",border:selOnly?"1px solid rgba(148,212,168,0.5)":"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"4px 10px",fontSize:11,color:selOnly?"#94d4a8":"#7a9988",cursor:"pointer",fontFamily:"inherit"}}>
+            {selOnly?"✓ My Picks":"My Picks"}
+          </button>
+          <span style={{marginLeft:"auto",fontSize:11,color:"#3a5848"}}>{sorted.length}/{ACTIVITIES.length}</span>
+        </div>
+
+        {/* Cards */}
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {sorted.length===0 && <div style={{textAlign:"center",color:"#4a6858",padding:"40px 0",fontSize:14}}>No activities match the current filters.</div>}
+          {sorted.map(a => {
+            const ve = Object.entries(a.votes);
+            const isOpen = expanded===a.id;
+            return (
+              <div key={a.id} style={{background:a.myP?PB[a.myP]:"rgba(255,255,255,0.03)",border:a.myP===1?"1px solid rgba(16,185,129,0.4)":a.myP===2?"1px solid rgba(59,130,246,0.35)":a.myP===3?"1px solid rgba(245,158,11,0.3)":"1px solid rgba(255,255,255,0.07)",borderRadius:12,overflow:"hidden"}}>
+                <div onClick={()=>setExpanded(isOpen?null:a.id)} style={{padding:"12px 14px",cursor:"pointer",display:"flex",alignItems:"flex-start",gap:10}}>
+                  <div style={{width:4,minHeight:36,borderRadius:2,flexShrink:0,marginTop:2,background:a.myP?PC[a.myP]:"rgba(255,255,255,0.08)"}}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:7,flexWrap:"wrap"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                        <span style={{fontSize:14,color:"#f0e6cc",fontWeight:600}}>{a.name}</span>
+                        {a.myP && <span style={{fontSize:10,fontWeight:700,color:PC[a.myP],background:`${PC[a.myP]}22`,border:`1px solid ${PC[a.myP]}55`,borderRadius:4,padding:"2px 7px",textTransform:"uppercase"}}>{PL[a.myP]}</span>}
+                        {a.flag && <span style={{fontSize:10.5,color:"#f0c060",background:"rgba(240,192,96,0.1)",borderRadius:4,padding:"2px 7px"}}>{a.flag}</span>}
+                      </div>
+                      <div style={{textAlign:"right",flexShrink:0}}>
+                        <div style={{fontSize:13,color:"#7de8b0",fontWeight:600}}>{fmtPrice(a)}</div>
+                        {a.pnote && <div style={{fontSize:10,color:"#5a8870"}}>{a.pnote}</div>}
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
+                      <span style={{fontSize:10.5,color:"#6b9c84"}}>{a.cat}</span>
+                      <span style={{fontSize:10.5,color:"#3a5848"}}>·</span>
+                      <span style={{fontSize:10.5,color:"#6b9c84"}}>⏱ {a.dur}</span>
+                      {!a.kids && <span style={{fontSize:10.5,color:"#f0a060"}}>⚠️ Age check</span>}
+                      {ve.length>0 && (
+                        <div style={{display:"flex",gap:3,marginLeft:2}}>
+                          {ve.map(([n,p])=>(
+                            <span key={n} title={n+": "+PL[p]} style={{fontSize:10,borderRadius:10,padding:"1px 7px",background:`${mcMap[n]||"#94d4a8"}20`,border:`1px solid ${mcMap[n]||"#94d4a8"}50`,color:mcMap[n]||"#94d4a8"}}>
+                              {n.split(" ")[0]} {p===1?"✓✓":p===2?"✓":"~"}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{fontSize:14,color:"#3a5848",transform:isOpen?"rotate(180deg)":"none",transition:"transform 0.2s",flexShrink:0,marginTop:2}}>▾</div>
+                </div>
+
+                {isOpen && (
+                  <div style={{padding:"0 14px 14px 32px",borderTop:"1px solid rgba(255,255,255,0.06)"}}>
+                    <p style={{fontSize:13,color:"#b8c8b8",margin:"11px 0 9px",lineHeight:1.6}}>{a.desc}</p>
+                    {a.knote && <div style={{background:"rgba(240,160,96,0.1)",border:"1px solid rgba(240,160,96,0.2)",borderRadius:6,padding:"7px 11px",marginBottom:9,fontSize:12,color:"#f0b060"}}>👨‍👧 Kids: {a.knote}</div>}
+                    <div style={{fontSize:12,color:"#5a8870",marginBottom:10}}>📍 {a.where} · 📋 {a.book}</div>
+
+                    {members.length>1 && (
+                      <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
+                        {members.map(m=>{
+                          const v=allVotes[m]?.[a.id]||null;
+                          return <div key={m} style={{fontSize:11,borderRadius:6,padding:"3px 9px",background:v?`${mcMap[m]}18`:"rgba(255,255,255,0.03)",border:`1px solid ${v?mcMap[m]+"55":"rgba(255,255,255,0.07)"}`,color:v?mcMap[m]:"#3a5848"}}>{m}: {v?PL[v]:"–"}</div>;
+                        })}
+                      </div>
+                    )}
+
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                      <span style={{fontSize:11,color:"#3a5848"}}>My vote:</span>
+                      {[1,2,3].map(p=>(
+                        <button key={p} onClick={e=>{e.stopPropagation();setPriority(a.id,p);}}
+                          style={{background:a.myP===p?`${PC[p]}30`:"transparent",border:`1px solid ${a.myP===p?PC[p]:"rgba(255,255,255,0.1)"}`,borderRadius:6,padding:"5px 12px",fontSize:12,color:a.myP===p?PC[p]:"#6a8878",cursor:"pointer",fontFamily:"inherit"}}>
+                          {a.myP===p?"✓ ":""}{PL[p]}
+                        </button>
+                      ))}
+                      {a.myP && <button onClick={e=>{e.stopPropagation();setPriority(a.id,a.myP);}} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.07)",borderRadius:6,padding:"5px 9px",fontSize:11,color:"#3a5848",cursor:"pointer",fontFamily:"inherit"}}>Clear</button>}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{maxWidth:960,margin:"24px auto 0",padding:"0 14px",textAlign:"center",fontSize:11,color:"#2a4838",lineHeight:1.8}}>
+        XPF at ~$1 = 119 XPF · Resort desk: +689 40 55 17 97 · activites@manavamoorearesort.pf<br/>
+        Cancellation: 48hr notice for full refund (standard) · 5 days for private tours
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
