@@ -102,35 +102,48 @@ async function apiPost(payload) {
   return j.data;
 }
 
-function NameSetup({ taken, onSave, saving }) {
-  const [name, setName] = useState("");
-  const [err, setErr] = useState("");
-  const isRejoining = name.trim() && taken.map(n=>n.toLowerCase()).includes(name.trim().toLowerCase());
-  const submit = () => {
-    const t = name.trim();
-    if (!t) { setErr("Please enter your name."); return; }
-    // If name already exists, rejoin as that person (no error)
-    onSave(t);
-  };
+const FAMILY = ["Gabe","Meghan","Aria","Sonora"];
+
+function NameSetup({ onSave, saving, selectedName, setSelectedName }) {
   return (
     <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0a1628,#0d2340 40%,#0a3a2a)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Georgia,Palatino,serif",padding:24}}>
       <div style={{maxWidth:440,width:"100%",textAlign:"center"}}>
         <div style={{fontSize:48,marginBottom:16}}>🌺</div>
         <div style={{fontSize:11,letterSpacing:6,color:"#94d4a8",textTransform:"uppercase",marginBottom:8}}>Moorea & Tahiti · Family Trip Planner</div>
-        <h2 style={{fontSize:26,fontWeight:400,color:"#fef0c0",margin:"0 0 8px"}}>Who are you?</h2>
-        <p style={{color:"#7db8a0",fontSize:14,marginBottom:20,lineHeight:1.6}}>Each family member votes on their favourite activities.<br/>Your name is remembered on this device.</p>
-        {taken.length > 0 && (
-          <div style={{marginBottom:20,fontSize:12,color:"#5a8870"}}>
-            Already joined: {taken.map(n=><span key={n} style={{display:"inline-block",background:"rgba(148,212,168,0.12)",border:"1px solid rgba(148,212,168,0.25)",borderRadius:12,padding:"2px 10px",margin:"2px 3px",color:"#94d4a8"}}>{n}</span>)}
-          </div>
+        <h2 style={{fontSize:26,fontWeight:400,color:"#fef0c0",margin:"0 0 12px"}}>Who are you?</h2>
+        <p style={{color:"#7db8a0",fontSize:14,marginBottom:32,lineHeight:1.6}}>Tap your name to get started.</p>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {FAMILY.map((n,i) => {
+            const col = ["#10b981","#3b82f6","#f59e0b","#e879a0"][i];
+            const selected = selectedName === n;
+            return (
+              <button key={n} onClick={() => setSelectedName(n)} style={{
+                background: selected ? col+"28" : "rgba(255,255,255,0.05)",
+                border: selected ? "2px solid "+col : "1px solid rgba(255,255,255,0.12)",
+                borderRadius:12, padding:"16px 20px",
+                fontSize:18, color: selected ? col : "#c8d8c8",
+                cursor:"pointer", fontFamily:"Georgia,Palatino,serif",
+                fontWeight: selected ? 600 : 400,
+                transition:"all 0.15s",
+                display:"flex", alignItems:"center", gap:12,
+              }}>
+                <span style={{width:10,height:10,borderRadius:"50%",background:col,display:"inline-block",flexShrink:0}}/>
+                {n}
+                {selected && <span style={{marginLeft:"auto",fontSize:14}}>✓</span>}
+              </button>
+            );
+          })}
+        </div>
+        {selectedName && (
+          <button onClick={() => onSave(selectedName)} disabled={saving} style={{
+            width:"100%", marginTop:24,
+            background:"rgba(148,212,168,0.2)", border:"1px solid rgba(148,212,168,0.5)",
+            borderRadius:12, padding:"14px", fontSize:15, color:"#94d4a8",
+            cursor: saving ? "wait" : "pointer", fontFamily:"inherit", opacity: saving ? 0.7 : 1,
+          }}>
+            {saving ? "Loading..." : "Continue as "+selectedName+" →"}
+          </button>
         )}
-        <input autoFocus value={name} onChange={e=>{setName(e.target.value);setErr("");}} onKeyDown={e=>e.key==="Enter"&&submit()} placeholder="Your first name or nickname..."
-          style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(148,212,168,0.3)",borderRadius:10,padding:"14px 18px",fontSize:16,color:"#f0e6cc",fontFamily:"inherit",marginBottom:err?8:16}}/>
-        {err && <div style={{color:"#f87171",fontSize:13,marginBottom:12}}>{err}</div>}
-        <button onClick={submit} disabled={saving}
-          style={{width:"100%",background:"rgba(148,212,168,0.2)",border:"1px solid rgba(148,212,168,0.5)",borderRadius:10,padding:"14px",fontSize:15,color:"#94d4a8",cursor:saving?"wait":"pointer",fontFamily:"inherit",opacity:saving?0.7:1}}>
-          {saving ? (isRejoining ? "Rejoining..." : "Joining...") : (isRejoining ? "Rejoin as " : "Join as ") + (name.trim()||"...") + " →"}
-        </button>
       </div>
     </div>
   );
@@ -142,6 +155,7 @@ function App() {
   const [loadState, setLoadState] = useState("loading");
   const [saveStatus, setSaveStatus] = useState("idle");
   const [joining, setJoining] = useState(false);
+  const [selectedName, setSelectedName] = useState("");
   const [cat, setCat] = useState("All");
   const [sortBy, setSortBy] = useState("category");
   const [selOnly, setSelOnly] = useState(false);
@@ -230,7 +244,7 @@ function App() {
       <button onClick={loadVotes} style={{marginTop:8,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"8px 20px",color:"#94d4a8",cursor:"pointer",fontFamily:"inherit"}}>Retry</button>
     </div>
   );
-  if (!myName) return <NameSetup taken={members} onSave={saveName} saving={joining}/>;
+  if (!myName) return <NameSetup onSave={saveName} saving={joining} selectedName={selectedName} setSelectedName={setSelectedName}/>;
 
   return (
     <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0a1628,#0d2340 40%,#0a3a2a)",fontFamily:"Georgia,Palatino,serif",color:"#e8dcc8",paddingBottom:60}}>
