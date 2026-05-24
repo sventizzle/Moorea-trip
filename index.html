@@ -119,6 +119,7 @@ function App() {
   const [selOnly, setSelOnly]   = useState(false);
   const [pFilter, setPFilter]   = useState(null);
   const [expanded, setExpanded] = useState(null);
+  const [viewAs, setViewAs]     = useState(null); // null = viewing as yourself
   const saveTimer = useRef(null);
   const pollTimer = useRef(null);
 
@@ -169,7 +170,8 @@ function App() {
 
   const members = FAMILY.filter(n => allVotes[n]);
   const mcMap = FAMILY.reduce((a,n,i)=>{a[n]=MC[i];return a;},{});
-  const mv = myName ? (allVotes[myName]||{}) : {};
+  const viewingAs = viewAs || myName; // who we're currently browsing as
+  const mv = viewingAs ? (allVotes[viewingAs]||{}) : {};
 
   const acts = activities.map(a => ({
     ...a,
@@ -218,18 +220,31 @@ function App() {
         <h1 style={{fontSize:"clamp(22px,5vw,38px)",fontWeight:400,margin:"0 0 4px",color:"#fef0c0"}}>Moorea & Tahiti</h1>
         <div style={{color:"#7db8a0",fontSize:13,marginBottom:14}}>June 13–18, 2026 · Manava Beach Resort</div>
 
-        {/* Member dots — only show FAMILY members who have joined */}
+        {/* Member dots — clickable to preview another person's votes */}
         <div style={{display:"flex",gap:7,justifyContent:"center",flexWrap:"wrap",marginBottom:12}}>
-          {FAMILY.map(m => (
-            <div key={m} style={{display:"flex",alignItems:"center",gap:5,background:m===myName?mcMap[m]+"22":"rgba(255,255,255,0.05)",border:"1px solid "+(m===myName?mcMap[m]:"rgba(255,255,255,0.1)"),borderRadius:20,padding:"4px 11px",fontSize:11.5,color:m===myName?mcMap[m]:"#7a9988",opacity:allVotes[m]||m===myName?1:0.4}}>
-              <span style={{width:6,height:6,borderRadius:"50%",background:mcMap[m],display:"inline-block"}}/>
-              {m}{m===myName?" (you)":""}
-            </div>
-          ))}
-          <button onClick={()=>{lsRemove(MY_NAME_KEY);setMyName("");}} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",borderRadius:20,padding:"4px 11px",fontSize:11,color:"#3a5848",cursor:"pointer",fontFamily:"inherit"}}>Switch</button>
+          {FAMILY.map(m => {
+            const isMe = m===myName;
+            const isViewing = m===viewingAs;
+            const hasVotes = !!allVotes[m];
+            return (
+              <button key={m} onClick={()=>{ if(isMe){setViewAs(null);}else if(hasVotes){setViewAs(isViewing?null:m);} }} style={{display:"flex",alignItems:"center",gap:5,background:isViewing?mcMap[m]+"28":"rgba(255,255,255,0.05)",border:isViewing?"2px solid "+mcMap[m]:"1px solid rgba(255,255,255,0.1)",borderRadius:20,padding:isViewing?"3px 10px":"4px 11px",fontSize:11.5,color:isViewing?mcMap[m]:"#7a9988",opacity:hasVotes||isMe?1:0.35,cursor:hasVotes||isMe?"pointer":"default",fontFamily:"inherit",transition:"all 0.15s"}}>
+                <span style={{width:6,height:6,borderRadius:"50%",background:mcMap[m],display:"inline-block"}}/>
+                {m}{isMe?" (you)":""}
+              </button>
+            );
+          })}
+          <button onClick={()=>{lsRemove(MY_NAME_KEY);setMyName("");setViewAs(null);}} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",borderRadius:20,padding:"4px 11px",fontSize:11,color:"#3a5848",cursor:"pointer",fontFamily:"inherit"}}>Switch</button>
         </div>
 
-        {/* Priority filter pills */}
+        {/* Viewing-as banner */}
+        {viewAs && viewAs!==myName && (
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:10,background:mcMap[viewAs]+"15",border:"1px solid "+mcMap[viewAs]+"40",borderRadius:10,padding:"8px 16px",fontSize:12.5}}>
+            <span style={{color:mcMap[viewAs]}}>👁 Viewing {viewAs}'s picks — read only</span>
+            <button onClick={()=>setViewAs(null)} style={{background:"transparent",border:"1px solid "+mcMap[viewAs]+"55",borderRadius:6,padding:"3px 10px",fontSize:11,color:mcMap[viewAs],cursor:"pointer",fontFamily:"inherit"}}>Back to mine</button>
+          </div>
+        )}
+
+        {/* Priority filter pills — counts reflect viewingAs */}
         <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
           {[1,2,3].map(p => {
             const on = pFilter===p;
@@ -262,7 +277,7 @@ function App() {
             <button key={v} onClick={()=>setSortBy(v)} style={{background:sortBy===v?"rgba(250,200,80,0.15)":"transparent",border:sortBy===v?"1px solid rgba(250,200,80,0.4)":"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"4px 10px",fontSize:11,color:sortBy===v?"#fac850":"#7a9988",cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
           ))}
           <button onClick={toggleSel} style={{background:selOnly?"rgba(148,212,168,0.15)":"transparent",border:selOnly?"1px solid rgba(148,212,168,0.5)":"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"4px 10px",fontSize:11,color:selOnly?"#94d4a8":"#7a9988",cursor:"pointer",fontFamily:"inherit"}}>
-            {selOnly?"✓ My Picks":"My Picks"}
+            {selOnly?(viewAs&&viewAs!==myName?("✓ "+viewAs+"'s Picks"):"✓ My Picks"):(viewAs&&viewAs!==myName?(viewAs+"'s Picks"):"My Picks")}
           </button>
           <span style={{marginLeft:"auto",fontSize:11,color:"#3a5848"}}>{sorted.length}/{acts.length}</span>
         </div>
@@ -333,15 +348,15 @@ function App() {
                       </div>
                     )}
 
-                    {/* Vote buttons */}
+                    {/* Vote buttons — only active when viewing your own */}
                     <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-                      <span style={{fontSize:11,color:"#3a5848"}}>My vote:</span>
+                      <span style={{fontSize:11,color:"#3a5848"}}>{viewAs&&viewAs!==myName?"Read only:":"My vote:"}</span>
                       {[1,2,3].map(p => (
-                        <button key={p} onClick={e=>{e.stopPropagation();setPriority(a.id,p);}} style={{background:a.myP===p?PC[p]+"30":"transparent",border:"1px solid "+(a.myP===p?PC[p]:"rgba(255,255,255,0.1)"),borderRadius:6,padding:"5px 12px",fontSize:12,color:a.myP===p?PC[p]:"#6a8878",cursor:"pointer",fontFamily:"inherit"}}>
+                        <button key={p} onClick={e=>{e.stopPropagation();if(!viewAs||viewAs===myName)setPriority(a.id,p);}} style={{background:a.myP===p?PC[p]+"30":"transparent",border:"1px solid "+(a.myP===p?PC[p]:"rgba(255,255,255,0.1)"),borderRadius:6,padding:"5px 12px",fontSize:12,color:a.myP===p?PC[p]:"#6a8878",cursor:viewAs&&viewAs!==myName?"default":"pointer",fontFamily:"inherit",opacity:viewAs&&viewAs!==myName?0.5:1}}>
                           {a.myP===p?"✓ ":""}{PL[p]}
                         </button>
                       ))}
-                      {a.myP && <button onClick={e=>{e.stopPropagation();setPriority(a.id,a.myP);}} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.07)",borderRadius:6,padding:"5px 9px",fontSize:11,color:"#3a5848",cursor:"pointer",fontFamily:"inherit"}}>Clear</button>}
+                      {a.myP && (!viewAs||viewAs===myName) && <button onClick={e=>{e.stopPropagation();setPriority(a.id,a.myP);}} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.07)",borderRadius:6,padding:"5px 9px",fontSize:11,color:"#3a5848",cursor:"pointer",fontFamily:"inherit"}}>Clear</button>}
                     </div>
                   </div>
                 )}
