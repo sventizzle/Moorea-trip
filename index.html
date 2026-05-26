@@ -106,6 +106,52 @@ function NameSetup({ onSave, saving }) {
   );
 }
 
+function ExportButton() {
+  const [status, setStatus] = useState("idle"); // idle | loading | done | error
+  const [sheetUrl, setSheetUrl] = useState(null);
+
+  const doExport = async () => {
+    setStatus("loading");
+    try {
+      const r = await fetch(SCRIPT_URL + "?action=exportSheet");
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error);
+      setSheetUrl(j.url);
+      setStatus("done");
+    } catch {
+      setStatus("error");
+    }
+  };
+
+  return (
+    <div style={{marginBottom:8}}>
+      {status === "idle" && (
+        <button onClick={doExport} style={{background:"rgba(148,212,168,0.1)",border:"1px solid rgba(148,212,168,0.3)",borderRadius:8,padding:"8px 20px",fontSize:12,color:"#7db8a0",cursor:"pointer",fontFamily:"inherit"}}>
+          📊 Export votes to Google Sheet
+        </button>
+      )}
+      {status === "loading" && (
+        <span style={{fontSize:12,color:"#5a8870"}}>⏳ Building your Sheet...</span>
+      )}
+      {status === "done" && sheetUrl && (
+        <div style={{display:"flex",alignItems:"center",gap:10,justifyContent:"center",flexWrap:"wrap"}}>
+          <span style={{fontSize:12,color:"#10b981"}}>✓ Sheet ready!</span>
+          <a href={sheetUrl} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:"#7de8b0",background:"rgba(125,232,176,0.1)",border:"1px solid rgba(125,232,176,0.3)",borderRadius:6,padding:"5px 12px",textDecoration:"none"}}>
+            Open Google Sheet →
+          </a>
+          <button onClick={doExport} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"5px 10px",fontSize:11,color:"#5a8870",cursor:"pointer",fontFamily:"inherit"}}>Refresh</button>
+        </div>
+      )}
+      {status === "error" && (
+        <div style={{display:"flex",alignItems:"center",gap:10,justifyContent:"center"}}>
+          <span style={{fontSize:12,color:"#f87171"}}>⚠ Export failed</span>
+          <button onClick={doExport} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"5px 10px",fontSize:11,color:"#5a8870",cursor:"pointer",fontFamily:"inherit"}}>Retry</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function App() {
   const [myName, setMyName]     = useState(() => lsGet(MY_NAME_KEY) || "");
   const [activities, setActivities] = useState([]);
@@ -398,8 +444,11 @@ function App() {
       </div>
 
       <div style={{maxWidth:960,margin:"24px auto 0",padding:"0 14px",textAlign:"center",fontSize:11,color:"#2a4838",lineHeight:1.8}}>
+        <ExportButton />
+        <div style={{marginTop:12}}>
         XPF at ~$1 = 119 XPF · Resort desk: +689 40 55 17 97 · activites@manavamoorearesort.pf<br/>
         Cancellation: 48hr notice for full refund (standard) · 5 days for private tours
+        </div>
       </div>
     </div>
   );
