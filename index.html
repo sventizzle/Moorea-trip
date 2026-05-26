@@ -47,10 +47,11 @@ function fmtPrice(a) {
 function score(id, votes) {
   const ms = Object.keys(votes).filter(m => Object.keys(votes[m]).length > 0);
   if (!ms.length) return 999;
-  const vs = ms.map(m => votes[m][id] || null).filter(Boolean);
+  const sid = String(id); // votes are stored with string keys
+  const vs = ms.map(m => votes[m][sid] || votes[m][id] || null).filter(Boolean);
   if (!vs.length) return 999;
-  const avg = vs.reduce((s,v)=>s+v,0) / vs.length;
-  const coverage = vs.length / FAMILY.length; // use full family size, not just voters
+  const avg = vs.reduce((s,v)=>s+Number(v),0) / vs.length;
+  const coverage = vs.length / FAMILY.length;
   return avg * (1 + (1 - coverage) * 0.5);
 }
 
