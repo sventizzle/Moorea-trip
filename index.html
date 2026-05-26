@@ -118,7 +118,8 @@ function ExportButton() {
       if (!j.ok) throw new Error(j.error);
       setSheetUrl(j.url);
       setStatus("done");
-    } catch {
+    } catch(err) {
+      setSheetUrl(err.message || "Unknown error");
       setStatus("error");
     }
   };
@@ -143,8 +144,8 @@ function ExportButton() {
         </div>
       )}
       {status === "error" && (
-        <div style={{display:"flex",alignItems:"center",gap:10,justifyContent:"center"}}>
-          <span style={{fontSize:12,color:"#f87171"}}>⚠ Export failed</span>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,justifyContent:"center"}}>
+          <span style={{fontSize:12,color:"#f87171"}}>⚠ Export failed: {sheetUrl}</span>
           <button onClick={doExport} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"5px 10px",fontSize:11,color:"#5a8870",cursor:"pointer",fontFamily:"inherit"}}>Retry</button>
         </div>
       )}
