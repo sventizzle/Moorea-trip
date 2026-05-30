@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Moorea & Tahiti · Where to Eat</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0a1628; }
+  input:focus { outline: none; }
+  ::-webkit-scrollbar { height: 4px; width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(148,212,168,0.2); border-radius: 2px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+const SCRIPT_URL  = "https://script.google.com/macros/s/AKfycbzhLvuWfRY_V3hUAfodxE5LdbwhZh9g4BuN_8U-POg8FzxWlsUqK8CPz94eXsspVHLXzw/exec";
+const MY_NAME_KEY = "moorea-my-name-v2";
+const FAMILY      = ["Gabe","Meghan","Aria","Sonora"];
+const MC          = ["#10b981","#3b82f6","#f59e0b","#e879a0"];
+const PL          = {1:"Must Go", 2:"Want To", 3:"Maybe"};
+const PC          = {1:"#10b981", 2:"#3b82f6", 3:"#f59e0b"};
+const PB          = {1:"rgba(16,185,129,0.10)", 2:"rgba(59,130,246,0.10)", 3:"rgba(245,158,11,0.10)"};
+
+const MEALS = ["All", "Breakfast", "Lunch", "Dinner", "Snack"];
+
+function lsGet(k) { try { return localStorage.getItem(k); } catch { try { return sessionStorage.getItem(k); } catch { return null; } } }
+function lsSet(k,v) { try { localStorage.setItem(k,v); } catch { try { sessionStorage.setItem(k,v); } catch {} } }
+function lsRemove(k) { try { localStorage.removeItem(k); } catch { try { sessionStorage.removeItem(k); } catch {} } }
+
+async function apiGet(action) {
+  const r = await fetch(SCRIPT_URL + (action ? "?action="+action : ""));
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error);
+  return j.data;
+}
+async function apiPost(payload) {
+  const r = await fetch(SCRIPT_URL, { method:"POST", body: JSON.stringify(payload) });
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error);
+  return j.data;
+}
+
+function score(id, votes) {
+  const sid = String(id);
+  const vs = FAMILY.map(m => (votes[m]||{})[sid] || (votes[m]||{})[id] || null).filter(Boolean).map(Number);
+  if (!vs.length) return 999;
+  const avg = vs.reduce((s,v)=>s+v,0)/vs.length;
+  const coverage = vs.length / FAMILY.length;
+  const penalty = Math.pow(FAMILY.length/vs.length, 0.6);
+  const bonus = coverage * (3-avg) / 2;
+  return avg * penalty * (1/(1+bonus));
+}
+
+function NameSetup({ onSave, saving }) {
+  const [sel, setSel] = useState("");
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0a1628,#0d2340 40%,#0a3a2a)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Georgia,Palatino,serif",padding:24}}>
+      <div style={{maxWidth:420,width:"100%",textAlign:"center"}}>
+        <div style={{fontSize:48,marginBottom:16}}>🍽️</div>
+        <div style={{fontSize:11,letterSpacing:6,color:"#94d4a8",textTransform:"uppercase",marginBottom:8}}>Moorea & Tahiti · Where to Eat</div>
+        <h2 style={{fontSize:26,fontWeight:400,color:"#fef0c0",margin:"0 0 10px"}}>Who are you?</h2>
+        <p style={{color:"#7db8a0",fontSize:14,marginBottom:28,lineHeight:1.6}}>Vote on your favourite restaurants.</p>
+        <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:24}}>
+          {FAMILY.map((n,i)=>{
+            const col=MC[i], on=sel===n;
+            return <button key={n} onClick={()=>setSel(n)} style={{background:on?col+"28":"rgba(255,255,255,0.05)",border:on?"2px solid "+col:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:"15px 20px",fontSize:18,color:on?col:"#c8d8c8",cursor:"pointer",fontFamily:"Georgia,Palatino,serif",fontWeight:on?600:400,transition:"all 0.15s",display:"flex",alignItems:"center",gap:12}}>
+              <span style={{width:10,height:10,borderRadius:"50%",background:col,display:"inline-block",flexShrink:0}}/>{n}{on&&<span style={{marginLeft:"auto",fontSize:14}}>✓</span>}
+            </button>;
+          })}
+        </div>
+        {sel && <button onClick={()=>onSave(sel)} disabled={saving} style={{width:"100%",background:"rgba(148,212,168,0.2)",border:"1px solid rgba(148,212,168,0.5)",borderRadius:12,padding:"14px",fontSize:15,color:"#94d4a8",cursor:saving?"wait":"pointer",fontFamily:"inherit",opacity:saving?0.7:1}}>
+          {saving?"Loading...":"Continue as "+sel+" →"}
+        </button>}
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [myName, setMyName]       = useState(()=>lsGet(MY_NAME_KEY)||"");
+  const [restaurants, setRestaurants] = useState([]);
+  const [allVotes, setAllVotes]   = useState({});
+  const [loadState, setLoadState] = useState("loading");
+  const [saveStatus, setSaveStatus] = useState("idle");
+  const [joining, setJoining]     = useState(false);
+  const [meal, setMeal]           = useState("All");
+  const [sortBy, setSortBy]       = useState("type");
+  const [selOnly, setSelOnly]     = useState(false);
+  const [pFilter, setPFilter]     = useState(null);
+  const [polyFilter, setPolyFilter] = useState(false);
+  const [gfFilter, setGfFilter]   = useState(false);
+  const [nonSeafoodFilter, setNonSeafoodFilter] = useState(false);
+  const [expanded, setExpanded]   = useState(null);
+  const [viewAs, setViewAs]       = useState(null);
+  const saveTimer = useRef(null);
+  const pollTimer = useRef(null);
+
+  const loadData = () => Promise.all([apiGet("restaurants"), apiGet()])
+    .then(([rests, votes]) => {
+      setRestaurants(rests||[]);
+      const rv = votes.restaurants || votes; // handle old flat format
+      setAllVotes(typeof rv === "object" && !Array.isArray(rv) ? rv : {});
+      setLoadState("ready");
+    }).catch(()=>setLoadState(s=>s==="loading"?"error":s));
+
+  useEffect(()=>{
+    loadData();
+    pollTimer.current = setInterval(()=>apiGet().then(v=>{ const rv=v.restaurants||v; setAllVotes(typeof rv==="object"&&!Array.isArray(rv)?rv:{}); }).catch(()=>{}), 15000);
+    return ()=>clearInterval(pollTimer.current);
+  },[]);
+
+  const saveName = async(name)=>{
+    setJoining(true);
+    try { const d=await apiPost({action:"setName",name}); setAllVotes(d.restaurants||{}); lsSet(MY_NAME_KEY,name); setMyName(name); }
+    catch { alert("Could not connect. Check your internet connection."); }
+    finally { setJoining(false); }
+  };
+
+  const setPriority = (rid, p) => {
+    if (!myName) return;
+    const mv = allVotes[myName]||{};
+    const nmv = {...mv, [rid]: mv[rid]===p?null:p};
+    const nav = {...allVotes, [myName]:nmv};
+    setAllVotes(nav);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    setSaveStatus("saving");
+    saveTimer.current = setTimeout(async()=>{
+      try { const d=await apiPost({action:"setVotes",section:"restaurants",name:myName,votes:nmv}); setAllVotes(d.restaurants||nav); setSaveStatus("saved"); setTimeout(()=>setSaveStatus("idle"),2000); }
+      catch { setSaveStatus("error"); }
+    },600);
+  };
+
+  const mcMap   = FAMILY.reduce((a,n,i)=>{a[n]=MC[i];return a;},{});
+  const viewingAs = viewAs||myName;
+  const mv      = viewingAs?(allVotes[viewingAs]||{}):{};
+
+  const rests = restaurants.map(r=>({
+    ...r,
+    myP: mv[r.id]||null,
+    votes: FAMILY.reduce((acc,m)=>{const v=(allVotes[m]||{})[r.id]||null;if(v)acc[m]=v;return acc;},{}),
+    sc: score(r.id, allVotes),
+  }));
+
+  const pc={1:0,2:0,3:0};
+  rests.forEach(r=>{if(r.myP)pc[r.myP]++;});
+
+  const filtered = rests.filter(r=>{
+    if (meal!=="All" && !(r.meal||[]).includes(meal)) return false;
+    if (selOnly && !r.myP) return false;
+    if (pFilter!==null && r.myP!==pFilter) return false;
+    if (polyFilter && !r.polynesian) return false;
+    return true;
+  });
+
+  const sorted = [...filtered].sort((a,b)=>{
+    if (sortBy==="priority") return (a.myP||99)-(b.myP||99);
+    if (sortBy==="consensus") return a.sc-b.sc;
+    return a.type.localeCompare(b.type)||a.name.localeCompare(b.name);
+  });
+
+  const togglePF  = p=>{setPFilter(pv=>pv===p?null:p);if(selOnly)setSelOnly(false);};
+  const toggleSel = ()=>{setSelOnly(s=>!s);if(!selOnly)setPFilter(null);};
+
+  if (loadState==="loading") return <div style={{minHeight:"100vh",background:"#0a1628",display:"flex",alignItems:"center",justifyContent:"center",color:"#94d4a8",fontFamily:"Georgia,serif",fontSize:14,gap:10}}><span style={{display:"inline-block",animation:"spin 1s linear infinite"}}>🌀</span>Loading restaurants...</div>;
+  if (loadState==="error") return <div style={{minHeight:"100vh",background:"#0a1628",display:"flex",alignItems:"center",justifyContent:"center",color:"#f87171",fontFamily:"Georgia,serif",fontSize:14,flexDirection:"column",gap:12,padding:24,textAlign:"center"}}><div style={{fontSize:32}}>⚠️</div><div>Could not connect.</div><button onClick={()=>{setLoadState("loading");loadData();}} style={{marginTop:8,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"8px 20px",color:"#94d4a8",cursor:"pointer",fontFamily:"inherit"}}>Retry</button></div>;
+  if (!myName) return <NameSetup onSave={saveName} saving={joining}/>;
+
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0a1628,#0d2340 40%,#0a3a2a)",fontFamily:"Georgia,Palatino,serif",color:"#e8dcc8",paddingBottom:60}}>
+
+      {/* Header */}
+      <div style={{background:"linear-gradient(180deg,rgba(80,40,0,0.5),transparent)",padding:"28px 20px 22px",textAlign:"center",borderBottom:"1px solid rgba(255,200,100,0.15)"}}>
+        <div style={{fontSize:11,letterSpacing:6,color:"#f0c060",textTransform:"uppercase",marginBottom:5}}>June 13–18, 2026</div>
+        <h1 style={{fontSize:"clamp(22px,5vw,38px)",fontWeight:400,margin:"0 0 4px",color:"#fef0c0"}}>Where to Eat</h1>
+        <div style={{color:"#7db8a0",fontSize:13,marginBottom:14}}>Moorea & Tahiti · 12 handpicked restaurants</div>
+
+        {/* Nav link back to activities */}
+        <a href="index.html" style={{display:"inline-block",marginBottom:14,fontSize:12,color:"#94d4a8",background:"rgba(148,212,168,0.1)",border:"1px solid rgba(148,212,168,0.25)",borderRadius:20,padding:"5px 14px",textDecoration:"none"}}>← Back to Activities</a>
+
+        {/* Member dots */}
+        <div style={{display:"flex",gap:7,justifyContent:"center",flexWrap:"wrap",marginBottom:12}}>
+          {FAMILY.map(m=>{
+            const isMe=m===myName, isViewing=m===viewingAs, hasVotes=!!allVotes[m];
+            return <button key={m} onClick={()=>{if(isMe)setViewAs(null);else if(hasVotes)setViewAs(isViewing?null:m);}} style={{display:"flex",alignItems:"center",gap:5,background:isViewing?mcMap[m]+"28":"rgba(255,255,255,0.05)",border:isViewing?"2px solid "+mcMap[m]:"1px solid rgba(255,255,255,0.1)",borderRadius:20,padding:isViewing?"3px 10px":"4px 11px",fontSize:11.5,color:isViewing?mcMap[m]:"#7a9988",opacity:hasVotes||isMe?1:0.35,cursor:hasVotes||isMe?"pointer":"default",fontFamily:"inherit",transition:"all 0.15s"}}>
+              <span style={{width:6,height:6,borderRadius:"50%",background:mcMap[m],display:"inline-block"}}/>{m}{isMe?" (you)":""}
+            </button>;
+          })}
+          <button onClick={()=>{lsRemove(MY_NAME_KEY);setMyName("");setViewAs(null);}} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",borderRadius:20,padding:"4px 11px",fontSize:11,color:"#3a5848",cursor:"pointer",fontFamily:"inherit"}}>Switch</button>
+        </div>
+
+        {viewAs && viewAs!==myName && (
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:10,background:mcMap[viewAs]+"15",border:"1px solid "+mcMap[viewAs]+"40",borderRadius:10,padding:"7px 16px",fontSize:12.5,maxWidth:400,margin:"0 auto 10px"}}>
+            <span style={{color:mcMap[viewAs]}}>👁 Viewing {viewAs}'s picks — read only</span>
+            <button onClick={()=>setViewAs(null)} style={{background:"transparent",border:"1px solid "+mcMap[viewAs]+"55",borderRadius:6,padding:"3px 10px",fontSize:11,color:mcMap[viewAs],cursor:"pointer",fontFamily:"inherit"}}>Back to mine</button>
+          </div>
+        )}
+
+        {/* Priority pills */}
+        <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
+          {[1,2,3].map(p=>{const on=pFilter===p;return <button key={p} onClick={()=>togglePF(p)} style={{background:on?PB[p]:PC[p]+"14",border:on?"2px solid "+PC[p]:"1px solid "+PC[p]+"44",borderRadius:20,padding:on?"5px 14px":"6px 15px",fontSize:12,color:on?PC[p]:PC[p]+"bb",cursor:"pointer",fontFamily:"inherit",boxShadow:on?"0 0 10px "+PC[p]+"30":"none"}}>{PL[p]}: {pc[p]}{on?" ✕":""}</button>;})}
+        </div>
+
+        <div style={{height:16,marginTop:5,fontSize:11,color:saveStatus==="error"?"#f87171":saveStatus==="saved"?"#10b981":"#3a5848",transition:"color 0.3s"}}>
+          {saveStatus==="saving"&&"Saving..."}{saveStatus==="saved"&&"✓ Saved"}{saveStatus==="error"&&"⚠ Save failed"}
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div style={{padding:"12px 14px 0",maxWidth:960,margin:"0 auto"}}>
+
+        {/* Meal filter + special toggles */}
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:9,alignItems:"center"}}>
+          {MEALS.map(m=><button key={m} onClick={()=>setMeal(m)} style={{background:meal===m?"rgba(240,192,96,0.2)":"rgba(255,255,255,0.05)",border:meal===m?"1px solid rgba(240,192,96,0.5)":"1px solid rgba(255,255,255,0.1)",borderRadius:20,padding:"5px 12px",fontSize:11.5,color:meal===m?"#f0c060":"#9aada0",cursor:"pointer",fontFamily:"inherit"}}>{m}</button>)}
+          <div style={{width:1,height:20,background:"rgba(255,255,255,0.1)",margin:"0 2px"}}/>
+          <button onClick={()=>setPolyFilter(s=>!s)} style={{background:polyFilter?"rgba(255,100,100,0.15)":"rgba(255,255,255,0.05)",border:polyFilter?"1px solid rgba(255,120,120,0.4)":"1px solid rgba(255,255,255,0.1)",borderRadius:20,padding:"5px 12px",fontSize:11.5,color:polyFilter?"#ff9988":"#9aada0",cursor:"pointer",fontFamily:"inherit"}}>
+            🌺 Polynesian only{polyFilter?" ✕":""}
+          </button>
+        </div>
+
+        {/* Sort row */}
+        <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
+          <span style={{fontSize:10.5,color:"#6b9980",letterSpacing:2,textTransform:"uppercase"}}>Sort:</span>
+          {[["type","By Type"],["priority","My Priority"],["consensus","Family"]].map(([v,l])=><button key={v} onClick={()=>setSortBy(v)} style={{background:sortBy===v?"rgba(250,200,80,0.15)":"transparent",border:sortBy===v?"1px solid rgba(250,200,80,0.4)":"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"4px 10px",fontSize:11,color:sortBy===v?"#fac850":"#7a9988",cursor:"pointer",fontFamily:"inherit"}}>{l}</button>)}
+          <button onClick={toggleSel} style={{background:selOnly?"rgba(148,212,168,0.15)":"transparent",border:selOnly?"1px solid rgba(148,212,168,0.5)":"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"4px 10px",fontSize:11,color:selOnly?"#94d4a8":"#7a9988",cursor:"pointer",fontFamily:"inherit"}}>
+            {selOnly?(viewAs&&viewAs!==myName?"✓ "+viewAs+"'s Picks":"✓ My Picks"):(viewAs&&viewAs!==myName?viewAs+"'s Picks":"My Picks")}
+          </button>
+          <span style={{marginLeft:"auto",fontSize:11,color:"#3a5848"}}>{sorted.length}/{rests.length}</span>
+        </div>
+
+        {/* Cards */}
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {sorted.length===0&&<div style={{textAlign:"center",color:"#4a6858",padding:"40px 0",fontSize:14}}>No restaurants match the current filters.</div>}
+          {sorted.map(r=>{
+            const ve=Object.entries(r.votes);
+            const isOpen=expanded===r.id;
+            return (
+              <div key={r.id} style={{background:r.myP?PB[r.myP]:"rgba(255,255,255,0.03)",border:r.myP===1?"1px solid rgba(16,185,129,0.4)":r.myP===2?"1px solid rgba(59,130,246,0.35)":r.myP===3?"1px solid rgba(245,158,11,0.3)":"1px solid rgba(255,255,255,0.07)",borderRadius:12,overflow:"hidden"}}>
+                <div onClick={()=>setExpanded(isOpen?null:r.id)} style={{padding:"13px 15px",cursor:"pointer",display:"flex",alignItems:"flex-start",gap:11}}>
+                  <div style={{width:4,minHeight:40,borderRadius:2,flexShrink:0,marginTop:2,background:r.myP?PC[r.myP]:"rgba(255,255,255,0.08)"}}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
+                        <span style={{fontSize:15,color:"#f0e6cc",fontWeight:600}}>{r.name}</span>
+                        {r.myP&&<span style={{fontSize:10,fontWeight:700,color:PC[r.myP],background:PC[r.myP]+"22",border:"1px solid "+PC[r.myP]+"55",borderRadius:4,padding:"2px 7px",textTransform:"uppercase"}}>{PL[r.myP]}</span>}
+                        {r.polynesian&&<span style={{fontSize:10.5,color:"#ff9988",background:"rgba(255,100,100,0.1)",borderRadius:4,padding:"2px 7px"}}>🌺 Polynesian</span>}
+                        {r.flag&&<span style={{fontSize:10.5,color:"#f0c060",background:"rgba(240,192,96,0.1)",borderRadius:4,padding:"2px 7px"}}>{r.flag}</span>}
+                      </div>
+                      <div style={{textAlign:"right",flexShrink:0}}>
+                        <div style={{fontSize:13,color:"#7de8b0",fontWeight:600}}>{r.price}</div>
+                        <div style={{fontSize:10,color:"#5a8870"}}>{r.cuisine}</div>
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
+                      <span style={{fontSize:10.5,color:"#f0c060"}}>{r.type}</span>
+                      <span style={{fontSize:10.5,color:"#3a5848"}}>·</span>
+                      <span style={{fontSize:10.5,color:"#6b9c84"}}>📍 {r.location}</span>
+                      {r.shuttle&&<span style={{fontSize:10,color:"#94d4a8",background:"rgba(148,212,168,0.1)",borderRadius:4,padding:"1px 6px"}}>🚐 Shuttle</span>}
+                      {!r.kids&&<span style={{fontSize:10,color:"#f0a060"}}>👤 Adults only</span>}
+                      {ve.length>0&&<div style={{display:"flex",gap:3,marginLeft:2}}>{ve.map(([n,p])=><span key={n} title={n+": "+PL[p]} style={{fontSize:10,borderRadius:10,padding:"1px 7px",background:(mcMap[n]||"#94d4a8")+"20",border:"1px solid "+(mcMap[n]||"#94d4a8")+"50",color:mcMap[n]||"#94d4a8"}}>{n.split(" ")[0]} {p===1?"✓✓":p===2?"✓":"~"}</span>)}</div>}
+                    </div>
+                  </div>
+                  <div style={{fontSize:14,color:"#3a5848",transform:isOpen?"rotate(180deg)":"none",transition:"transform 0.2s",flexShrink:0,marginTop:3}}>▾</div>
+                </div>
+
+                {isOpen&&(
+                  <div style={{padding:"0 15px 15px 34px",borderTop:"1px solid rgba(255,255,255,0.06)"}}>
+                    <p style={{fontSize:13,color:"#b8c8b8",margin:"11px 0 10px",lineHeight:1.6}}>{r.desc}</p>
+
+                    {/* Info grid */}
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+                      {r.mustOrder&&<div style={{background:"rgba(240,192,96,0.08)",border:"1px solid rgba(240,192,96,0.2)",borderRadius:8,padding:"8px 11px"}}>
+                        <div style={{fontSize:10,color:"#c8a84a",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>Must Order</div>
+                        <div style={{fontSize:12,color:"#f0e6cc"}}>{r.mustOrder}</div>
+                      </div>}
+                      {r.seafoodAlt&&<div style={{background:"rgba(59,130,246,0.08)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:8,padding:"8px 11px"}}>
+                        <div style={{fontSize:10,color:"#7ab0f0",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>Non-Seafood Options</div>
+                        <div style={{fontSize:12,color:"#f0e6cc"}}>{r.seafoodAlt}</div>
+                      </div>}
+                      {r.gf&&<div style={{background:"rgba(16,185,129,0.08)",border:"1px solid rgba(16,185,129,0.2)",borderRadius:8,padding:"8px 11px"}}>
+                        <div style={{fontSize:10,color:"#7de8b0",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>Gluten Sensitivity</div>
+                        <div style={{fontSize:12,color:"#f0e6cc"}}>{r.gf}</div>
+                      </div>}
+                      <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"8px 11px"}}>
+                        <div style={{fontSize:10,color:"#7a9988",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>Hours & Booking</div>
+                        <div style={{fontSize:12,color:"#f0e6cc"}}>{r.hours}</div>
+                        <div style={{fontSize:11,color:"#5a8870",marginTop:3}}>{r.book}</div>
+                      </div>
+                    </div>
+
+                    {/* Learn more */}
+                    {r.link&&<div style={{marginBottom:12}}>
+                      <a href={r.link} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11.5,color:"#7de8b0",background:"rgba(125,232,176,0.1)",border:"1px solid rgba(125,232,176,0.3)",borderRadius:6,padding:"5px 12px",textDecoration:"none"}}>
+                        🔗 Learn more / book
+                      </a>
+                    </div>}
+
+                    {/* Family votes */}
+                    {FAMILY.length>1&&<div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:12}}>
+                      {FAMILY.map(m=>{const v=(allVotes[m]||{})[r.id]||null;return <div key={m} style={{fontSize:11,borderRadius:6,padding:"3px 9px",background:v?(mcMap[m]||"#94d4a8")+"18":"rgba(255,255,255,0.03)",border:"1px solid "+(v?(mcMap[m]||"#94d4a8")+"55":"rgba(255,255,255,0.07)"),color:v?(mcMap[m]||"#94d4a8"):"#3a5848"}}>{m}: {v?PL[v]:"–"}</div>;})}
+                    </div>}
+
+                    {/* Vote buttons */}
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                      <span style={{fontSize:11,color:"#3a5848"}}>{viewAs&&viewAs!==myName?"Read only:":"My vote:"}</span>
+                      {[1,2,3].map(p=><button key={p} onClick={e=>{e.stopPropagation();if(!viewAs||viewAs===myName)setPriority(r.id,p);}} style={{background:r.myP===p?PC[p]+"30":"transparent",border:"1px solid "+(r.myP===p?PC[p]:"rgba(255,255,255,0.1)"),borderRadius:6,padding:"5px 12px",fontSize:12,color:r.myP===p?PC[p]:"#6a8878",cursor:viewAs&&viewAs!==myName?"default":"pointer",fontFamily:"inherit",opacity:viewAs&&viewAs!==myName?0.5:1}}>{r.myP===p?"✓ ":""}{PL[p]}</button>)}
+                      {r.myP&&(!viewAs||viewAs===myName)&&<button onClick={e=>{e.stopPropagation();setPriority(r.id,r.myP);}} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.07)",borderRadius:6,padding:"5px 9px",fontSize:11,color:"#3a5848",cursor:"pointer",fontFamily:"inherit"}}>Clear</button>}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{maxWidth:960,margin:"24px auto 0",padding:"0 14px",textAlign:"center",fontSize:11,color:"#2a4838",lineHeight:1.8}}>
+        Prices are estimates in USD · Always confirm hours and reservations before visiting<br/>
+        <a href="index.html" style={{color:"#3a5848",textDecoration:"none"}}>← Back to Activities Planner</a>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+</script>
+</body>
+</html>
