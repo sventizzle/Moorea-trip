@@ -181,14 +181,19 @@ function App() {
     Promise.all([apiGet("activities"), apiGet()])
       .then(([acts, votes]) => {
         setActivities(acts || []);
-        setAllVotes(votes || {});
+        // Handle both new sectioned format and legacy flat format
+        const av = (votes && votes.activities) ? votes.activities : (votes || {});
+        setAllVotes(av);
         const allCats = ["All", ...new Set((acts||[]).map(a => a.cat))];
         setCats(allCats);
         setLoadState("ready");
       })
       .catch(() => setLoadState("error"));
     pollTimer.current = setInterval(() =>
-      apiGet().then(d => setAllVotes(d||{})).catch(()=>{}), 15000);
+      apiGet().then(d => {
+        const av = (d && d.activities) ? d.activities : (d || {});
+        setAllVotes(av);
+      }).catch(()=>{}), 15000);
     return () => clearInterval(pollTimer.current);
   }, []);
 
@@ -196,7 +201,8 @@ function App() {
     setJoining(true);
     try {
       const d = await apiPost({ action:"setName", name });
-      setAllVotes(d||{});
+      const av = (d && d.activities) ? d.activities : (d || {});
+      setAllVotes(av);
       lsSet(MY_NAME_KEY, name);
       setMyName(name);
     } catch { alert("Could not connect. Check your internet connection."); }
@@ -213,8 +219,9 @@ function App() {
     setSaveStatus("saving");
     saveTimer.current = setTimeout(async () => {
       try {
-        const d = await apiPost({action:"setVotes", name:myName, votes:nmv});
-        setAllVotes(d||nav);
+        const d = await apiPost({action:"setVotes", section:"activities", name:myName, votes:nmv});
+        const av = (d && d.activities) ? d.activities : (d || nav);
+        setAllVotes(av);
         setSaveStatus("saved");
         setTimeout(()=>setSaveStatus("idle"), 2000);
       } catch { setSaveStatus("error"); }
